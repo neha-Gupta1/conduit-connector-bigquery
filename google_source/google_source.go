@@ -83,32 +83,37 @@ func (s *Source) ReadDataFromEndpoint(bqReadClient *bqStorage.BigQueryReadClient
 		return errors.New("no session found")
 	}
 
-	readStream := s.Session.GetStreams()[0].Name
+	s.readStream = s.Session.GetStreams()[0].Name
 	s.Ch = make(chan *bqStoragepb.AvroRows, 1)
 
-	go func() (err error) {
-		defer close(s.Ch)
-		if err := processStream(s.Ctx, s.BQReadClient, readStream, s.Ch); err != nil {
-			sdk.Logger(s.Ctx).Error().Str("err", err.Error()).Msg("processStream failure:")
-			return errors.New("no session found")
-		}
-		return nil
-	}()
+	// s.tomb.Go(s.PullData)
+	// s.tomb.Go(s.FlushingData)
 
-	go func() (err error) {
-		err = processAvro(s.Ctx, s.Session.GetAvroSchema().GetSchema(), s.Ch, s.SDKResponse)
-		if err != nil && err == sdk.ErrBackoffRetry {
-			sdk.Logger(s.Ctx).Info().Str("tableID", tableID).Msg("Done processing table")
-			return nil
-		} else if err != nil {
-			sdk.Logger(s.Ctx).Error().Str("err", err.Error()).Msg("Error found")
-			return err
-		}
+	go s.PullData()
+	go s.FlushingData()
 
-		return nil
-	}()
 	return err
 
+}
+
+func (s *Source) PullData() (err error) {
+	defer close(s.Ch)
+	if err := processStream(s.Ctx, s.BQReadClient, s.readStream, s.Ch); err != nil {
+		sdk.Logger(s.Ctx).Error().Str("err", err.Error()).Msg("processStream failure")
+	}
+	return err
+}
+
+func (s *Source) FlushingData() (err error) {
+	err = processAvro(s.Ctx, s.Session.GetAvroSchema().GetSchema(), s.Ch, s.SDKResponse)
+	if err != nil && err == sdk.ErrBackoffRetry {
+		sdk.Logger(s.Ctx).Info().Msg("Done processing table")
+		return
+	} else if err != nil {
+		sdk.Logger(s.Ctx).Error().Str("err", err.Error()).Msg("Error found")
+		return
+	}
+	return err
 }
 
 // processStream reads rows from a single storage Stream, and sends the Avro
@@ -139,6 +144,8 @@ func processStream(ctx context.Context, client *bqStorage.BigQueryReadClient, st
 			if err == io.EOF {
 				return nil
 			}
+
+			fmt.Println("Printing r: ", r)
 			if err != nil {
 				retries++
 				if retries >= retryLimit {
@@ -270,4 +277,49 @@ func valueFromTypeMap(field interface{}) interface{} {
 		return v
 	}
 	return nil
+}
+
+// Next returns the next record from the buffer.
+func (s *Source) Next(ctx context.Context) (sdk.Record, error) {
+	select {
+	case r := <-s.SDKResponse:
+		return r, nil
+	case <-s.tomb.Dead():
+		return sdk.Record{}, s.tomb.Err()
+	case <-ctx.Done():
+		return sdk.Record{}, ctx.Err()
+	}
+}
+
+func (s *Source) HasNext() bool {
+	if len(s.SDKResponse) <= 0 {
+		sdk.Logger(s.Ctx).Debug().Msg("We will try in 2 seconds.")
+		time.Sleep(2 * time.Second)
+		if len(s.SDKResponse) <= 0 {
+			sdk.Logger(s.Ctx).Debug().Msg("We are done with pulling info")
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Source) Iterate(bqReadClient *bqStorage.BigQueryReadClient) (err error) {
+
+	for {
+		select {
+		case <-s.closeIterator:
+			log.Println("Got context.done")
+			return nil
+		default:
+			log.Println("default called")
+			for _, tableID := range s.Tables {
+				err = s.ReadDataFromEndpoint(bqReadClient, tableID)
+				if err != nil {
+					fmt.Println("Error found")
+					return
+
+				}
+			}
+		}
+	}
 }

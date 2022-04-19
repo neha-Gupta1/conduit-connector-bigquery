@@ -43,23 +43,27 @@ func TestSuccessfulGet(t *testing.T) {
 		fmt.Println("errror: ", err)
 	}
 
-	for i := 0; i <= 4; i++ {
+	for { //i := 0; i <= 4; i++
 		fmt.Println("Calling read again....")
 		record, err := src.Read(ctx)
-		if err != nil || ctx.Err() != nil {
+		if err != nil && err == sdk.ErrBackoffRetry {
 			fmt.Println(err)
 			break
 		}
-
+		if err != nil {
+			t.Errorf("some other game found: %v", err)
+		}
 		value := string(record.Payload.Bytes())
 		fmt.Println("Record found:", value)
 	}
-
+	fmt.Println("Calling teardown for start...")
 	err = src.Teardown(ctx)
+	fmt.Println("Calling teardown...")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 
 	}
+
 }
 
 func TestSuccessfulGetWholeDataset(t *testing.T) {
