@@ -14,7 +14,7 @@ for eg,
 - Pipeline is paused after syncing complete table A and table B till index 5.
 - On resuming the pipeline - Connector sync data from table B index 6 and would not sync table A's already synced rows.
 
-Currently updataion/deletion is not handled by the connector.
+Since Bigquery does not provide any feature for informing about the updates or deletes, it is not possible to track updations. And hence, currently updataion/deletion is not handled by the connector. 
 
 ### How to build?
 Run `make build` to build the connector.
@@ -22,8 +22,6 @@ Run `make build` to build the connector.
 ### Testing
 Run `make test` to run all the unit tests. To run the test cases update - `serviceAccount` and `projectID`
 in `google_source->source_intergration_test.go` 
-
-The Docker compose file at `test/docker-compose.yml` can be used to run the required resource locally.
 
 ### Known Issues & Limitations
 * Current implementation handles snapshot and incremental data.
@@ -37,8 +35,8 @@ server to validate configuration and dynamically display configuration options t
 
 ### Configuration
 
-| name |  description | required | default value |
-|------|---------|-------------|----------|
+| name | description | required | default value |
+|------|--------------|----------|---------------|
 |`serviceAccount`|Path to service account file with access to project|true| false|
 |`projectID`| The Project ID on endpoint|true| false|
 |`datasetID`|The dataset ID to pull data from.|true|false|
