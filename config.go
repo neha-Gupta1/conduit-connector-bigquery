@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 )
 
@@ -37,25 +36,16 @@ const (
 
 	// ConfigLocation location of the dataset
 	ConfigLocation = "datasetLocation"
-
-	// ConfigPollingTime time after which polling should be done
-	ConfigPollingTime = "pollingTime"
-
-	// ConfigOrderBy lets user decide
-	ConfigOrderBy = "orderby"
 )
 
 // Config represents configuration needed for S3
 type Config struct {
 	// haris: we can do without the Config prefix, since it's assumed from the struct name.
-	// Neha: DONE
-	ProjectID      string
-	DatasetID      string
-	TableID        string
-	ServiceAccount string
-	Location       string
-	PollingTime    string
-	Orderby        map[string]string
+	ConfigProjectID      string
+	ConfigDatasetID      string
+	ConfigTableID        string
+	ConfigServiceAccount string
+	ConfigLocation       string
 }
 
 var (
@@ -63,8 +53,7 @@ var (
 	CounterLimit = 500
 	// PollingTime time after which ticker will pull data
 	// haris: it feels like we should make this configurable?
-	// Neha: DONE. This being default value
-	PollingTime = time.Minute * 5
+	PollingTime = time.Minute * 1
 )
 
 // SourceConfig is config for source
@@ -94,25 +83,13 @@ func ParseSourceConfig(cfg map[string]string) (SourceConfig, error) {
 	if _, ok := cfg[ConfigLocation]; !ok {
 		return SourceConfig{}, errors.New("location can't be blank")
 	}
-	config := Config{
-		ServiceAccount: cfg[ConfigServiceAccount],
-		ProjectID:      cfg[ConfigProjectID],
-		DatasetID:      cfg[ConfigDatasetID],
-		TableID:        cfg[ConfigTableID],
-		Location:       cfg[ConfigLocation],
-		PollingTime:    cfg[ConfigPollingTime]}
 
-	if orderby, ok := cfg[ConfigOrderBy]; ok {
-		config.Orderby = make(map[string]string)
-		tableArr := strings.Split(orderby, ",")
-		for _, table := range tableArr {
-			singleTableRow := strings.Split(table, ":")
-			if len(singleTableRow) < 2 {
-				return SourceConfig{}, errors.New("invalid formating of orderby, should be tableid:columnName,anotherTableid:anotherColumnName")
-			}
-			config.Orderby[singleTableRow[0]] = singleTableRow[1]
-		}
-	}
+	config := Config{
+		ConfigServiceAccount: cfg[ConfigServiceAccount],
+		ConfigProjectID:      cfg[ConfigProjectID],
+		ConfigDatasetID:      cfg[ConfigDatasetID],
+		ConfigTableID:        cfg[ConfigTableID],
+		ConfigLocation:       cfg[ConfigLocation]}
 
 	return SourceConfig{
 		Config: config,

@@ -170,6 +170,14 @@ func TestAck(t *testing.T) {
 	}
 }
 
+func TestTableFetchInvalidCred(t *testing.T) {
+	s := Source{}
+	_, err := s.listTables("", "")
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+}
+
 func TestNextContextDone(t *testing.T) {
 	s := Source{}
 	ctx := context.Background()
@@ -213,8 +221,8 @@ func TestInvalid(t *testing.T) {
 	}
 
 	err = src.Open(ctx, pos)
-	if err == nil {
-		t.Errorf("expected error, got %v", err)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
 	}
 
 	time.Sleep(15 * time.Second)
@@ -226,34 +234,5 @@ func TestInvalid(t *testing.T) {
 	err = src.Teardown(ctx)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
-	}
-}
-
-func TestInvalidOrderByName(t *testing.T) {
-	// cleanupDataSet()
-	err := dataSetup()
-	if err != nil {
-		fmt.Println("Could not create values. Err: ", err)
-		return
-	}
-	defer func() {
-		err := cleanupDataset()
-		fmt.Println("Got error while cleanup. Err: ", err)
-	}()
-
-	src := Source{}
-	cfg := map[string]string{
-		googlebigquery.ConfigServiceAccount: serviceAccount,
-		googlebigquery.ConfigProjectID:      projectID,
-		googlebigquery.ConfigDatasetID:      datasetID,
-		googlebigquery.ConfigLocation:       location,
-		googlebigquery.ConfigOrderBy:        "conduit_test_table-post_abbr",
-	}
-
-	ctx := context.Background()
-	err = src.Configure(ctx, cfg)
-	if err == nil {
-		fmt.Println("expected error. got null")
-		t.Errorf("some other error found: %v", err)
 	}
 }

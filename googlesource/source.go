@@ -17,14 +17,13 @@ package googlesource
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
 	"cloud.google.com/go/bigquery"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	googlebigquery "github.com/neha-Gupta1/conduit-connector-bigquery"
-	"google.golang.org/api/option"
+	bqStoragepb "google.golang.org/genproto/googleapis/cloud/bigquery/storage/v1"
 	"gopkg.in/tomb.v2"
 )
 
@@ -32,32 +31,20 @@ type Source struct {
 	sdk.UnimplementedSource
 	// haris: let's check which fields do need to be exported.
 	// It feels like most do not need to be.
-	// Neha : DONE
-	bqReadClient *bigquery.Client
-	sourceConfig googlebigquery.SourceConfig
+	Session      *bqStoragepb.ReadSession
+	BQReadClient *bigquery.Client
+	SourceConfig googlebigquery.SourceConfig
 	// haris: isn't this part of config?
-	// Neha : TableID is optional in config. If not provided we need to find them and then insert as
-	// array instead of a string. So that can be iterated easily.
-	tables []string
+	Tables []string
 	// do we need Ctx? we have it in all the methods as a param
-	// Neha: for all the function running in goroutine we needed the ctx value. To provide the current
-	// ctx value ctx was required in struct.
-	ctx     context.Context
-	records chan sdk.Record
+	Ctx         context.Context
+	SDKResponse chan sdk.Record
 	// haris: what's the difference between these two?
-	// Neha: LatestPositions is required to maintain CDC. Since we are dealing with multiple
-	// tables we need to keep the track of last position in each table which can't we done by
-	// just using Position.
-	//  eg, table1 is synced till row 5
-	//  table2 synced till row 6
-	// a new row comes in table1. Position will contain info about table2 row 6 only. But to fetch data
-	// from table one we need latestPostion
-	latestPositions latestPositions
-	position        Position
+	LatestPositions latestPositions
+	Position        Position
 	ticker          *time.Ticker
 	tomb            *tomb.Tomb
 	iteratorClosed  chan bool
-	snapshot        bool
 }
 
 type latestPositions struct {
@@ -65,7 +52,6 @@ type latestPositions struct {
 	// It feels like we're repeating info.
 	// Firstly, we have a LatestPositions field in a latestPositions struct.
 	// Also, IIUC, the keys here are actually table IDs, but we already have a table ID in the Position struct.
-	// Neha: reason mentioned in above comment
 	LatestPositions map[string]Position
 	lock            sync.Mutex
 }
@@ -73,7 +59,6 @@ type latestPositions struct {
 type Position struct {
 	TableID string
 	// can we use a page token instead?
-	// Neha: Will check it
 	Offset int
 }
 
@@ -89,46 +74,26 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 		return err
 	}
 
-	s.sourceConfig = sourceConfig
+	s.SourceConfig = sourceConfig
 	return nil
 }
 
 func (s *Source) Open(ctx context.Context, pos sdk.Position) (err error) {
-	s.ctx = ctx
-	s.position = fetchPos(s, pos)
+	s.Ctx = ctx
+	s.Position = fetchPos(s, pos)
 
 	// haris: can we then rename SDKResponse to just `records`? SDKResponse sounds a bit generic.
-	// Neha: DONE
-	// s.records is a buffered channel that contains records
+	// s.SDKResponse is a buffered channel that contains records
 	//  coming from all the tables which user wants to sync.
-	s.records = make(chan sdk.Record, 100)
+	s.SDKResponse = make(chan sdk.Record, 100)
 	s.iteratorClosed = make(chan bool, 2)
-
-	if len(s.sourceConfig.Config.PollingTime) > 0 {
-		googlebigquery.PollingTime, err = time.ParseDuration(s.sourceConfig.Config.PollingTime + "m")
-		if err != nil {
-			sdk.Logger(ctx).Error().Str("err", err.Error()).Msg("Invalid time provided. Minutes required.")
-			return err
-		}
-	}
 	s.ticker = time.NewTicker(googlebigquery.PollingTime)
 	s.tomb = &tomb.Tomb{}
 
 	// haris: why do we need a lock here?
-	// Neha: LatestPositions is updated by in goroutine updating it without lock creates race condition
-
-	s.latestPositions.lock.Lock()
-	s.latestPositions.LatestPositions = make(map[string]Position)
-	s.latestPositions.lock.Unlock()
-
-	client, err := newClient(s.tomb.Context(s.ctx), s.sourceConfig.Config.ProjectID, option.WithCredentialsFile(s.sourceConfig.Config.ServiceAccount))
-	if err != nil {
-		sdk.Logger(s.ctx).Error().Str("err", err.Error()).Msg("error found while creating connection. ")
-		s.tomb.Kill(err)
-		return fmt.Errorf("bigquery.NewClient: %v", err)
-	}
-
-	s.bqReadClient = client
+	s.LatestPositions.lock.Lock()
+	s.LatestPositions.LatestPositions = make(map[string]Position)
+	s.LatestPositions.lock.Unlock()
 
 	s.tomb.Go(s.runIterator)
 	sdk.Logger(ctx).Trace().Msg("end of function: open")
@@ -139,7 +104,7 @@ func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
 	sdk.Logger(ctx).Trace().Msg("Stated read function")
 	var response sdk.Record
 
-	response, err := s.Next(s.ctx)
+	response, err := s.Next(s.Ctx)
 	if err != nil {
 		sdk.Logger(ctx).Trace().Str("err", err.Error()).Msg("Error from endpoint.")
 		return sdk.Record{}, err
@@ -156,24 +121,24 @@ func (s *Source) Teardown(ctx context.Context) error {
 	// TODO: understand why handling the closing of iterator fails the plugin
 
 	// s.iteratorClosed <- true
-	// sdk.Logger(s.ctx).Error().Msg("Teardown: closing all channels")
+	// sdk.Logger(s.Ctx).Error().Msg("Teardown: closing all channels")
 
-	if s.records != nil {
-		close(s.records)
+	if s.SDKResponse != nil {
+		close(s.SDKResponse)
 	}
 	err := s.StopIterator()
 	if err != nil {
-		sdk.Logger(s.ctx).Error().Str("err", err.Error()).Msg("got error while closing bigquery client")
+		sdk.Logger(s.Ctx).Error().Str("err", err.Error()).Msg("got error while closing bigquery client")
 		return err
 	}
 	return nil
 }
 
 func (s *Source) StopIterator() error {
-	if s.bqReadClient != nil {
-		err := s.bqReadClient.Close()
+	if s.BQReadClient != nil {
+		err := s.BQReadClient.Close()
 		if err != nil {
-			sdk.Logger(s.ctx).Error().Str("err", err.Error()).Msg("got error while closing bigquery client")
+			sdk.Logger(s.Ctx).Error().Str("err", err.Error()).Msg("got error while closing bigquery client")
 			return err
 		}
 	}

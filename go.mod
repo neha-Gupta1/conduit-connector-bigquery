@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/bigquery v1.31.0
 	github.com/conduitio/conduit-connector-sdk v0.2.0
 	google.golang.org/api v0.78.0
+	google.golang.org/genproto v0.0.0-20220429170224-98d788798c3e
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
 
@@ -37,7 +38,6 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220429170224-98d788798c3e // indirect
 	google.golang.org/grpc v1.46.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 )
