@@ -53,7 +53,6 @@ type Source struct {
 	// a new row comes in table1. Position will contain info about table2 row 6 only. But to fetch data
 	// from table one we need latestPostion
 	latestPositions latestPositions
-	position        Position
 	ticker          *time.Ticker
 	tomb            *tomb.Tomb
 	iteratorClosed  chan bool
@@ -66,7 +65,7 @@ type latestPositions struct {
 	// Firstly, we have a LatestPositions field in a latestPositions struct.
 	// Also, IIUC, the keys here are actually table IDs, but we already have a table ID in the Position struct.
 	// Neha: reason mentioned in above comment
-	LatestPositions map[string]Position
+	LatestPositions map[string]int
 	lock            sync.Mutex
 }
 
@@ -95,12 +94,12 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 
 func (s *Source) Open(ctx context.Context, pos sdk.Position) (err error) {
 	s.ctx = ctx
-	s.position = fetchPos(s, pos)
+	fetchPos(s, pos)
 
 	// haris: can we then rename SDKResponse to just `records`? SDKResponse sounds a bit generic.
 	// Neha: DONE
 	// s.records is a buffered channel that contains records
-	//  coming from all the tables which user wants to sync.
+	// coming from all the tables which user wants to sync.
 	s.records = make(chan sdk.Record, 100)
 	s.iteratorClosed = make(chan bool, 2)
 
@@ -113,13 +112,6 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) (err error) {
 	}
 	s.ticker = time.NewTicker(googlebigquery.PollingTime)
 	s.tomb = &tomb.Tomb{}
-
-	// haris: why do we need a lock here?
-	// Neha: LatestPositions is updated by in goroutine updating it without lock creates race condition
-
-	s.latestPositions.lock.Lock()
-	s.latestPositions.LatestPositions = make(map[string]Position)
-	s.latestPositions.lock.Unlock()
 
 	client, err := newClient(s.tomb.Context(s.ctx), s.sourceConfig.Config.ProjectID, option.WithCredentialsFile(s.sourceConfig.Config.ServiceAccount))
 	if err != nil {

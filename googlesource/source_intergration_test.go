@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -33,12 +32,16 @@ var (
 	// make these environmental variables with default values, or an empty value {first two} if it's required by user
 	// check this for a reference https://github.com/ConduitIO/conduit-connector-s3/blob/10078746a718860570bc810f5a0040a096a447a4/source/source_integration_test.go#L611
 	// Neha: DONE
-	serviceAccount = os.Getenv("SERVICE_ACCOUNT") // eg, export SERVICE_ACCOUNT = "path_to_file"
-	projectID      = os.Getenv("PROJECT_ID")      // eg, export PROJECT_ID ="conduit-connectors"
-	datasetID      = "conduit_test_dataset"
-	tableID        = "conduit_test_table"
-	tableID2       = "conduit_test_table_2"
-	location       = "US"
+	// serviceAccount = os.Getenv("SERVICE_ACCOUNT") // eg, export SERVICE_ACCOUNT = "path_to_file"
+	// projectID      = os.Getenv("PROJECT_ID")      // eg, export PROJECT_ID ="conduit-connectors"
+
+	serviceAccount = "/home/nehagupta/Downloads/conduit-connectors-cf3466b16662.json" // eg, export SERVICE_ACCOUNT = "path_to_file"
+	projectID      = "conduit-connectors"                                             // eg, export PROJECT_ID ="conduit-connectors"
+
+	datasetID = "conduit_test_dataset"
+	tableID   = "conduit_test_table"
+	tableID2  = "conduit_test_table_2"
+	location  = "US"
 )
 
 // func TestDataSetup(t *testing.T) {
@@ -175,8 +178,9 @@ func TestSuccessfulGet(t *testing.T) {
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	pos, err := json.Marshal(Position{TableID: "conduit_test_table", Offset: 46})
+	position := make(map[string]int)
+	position["conduit_test_table"] = 46
+	pos, err := json.Marshal(position)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -197,7 +201,7 @@ func TestSuccessfulGet(t *testing.T) {
 		fmt.Printf("Record position found: %s", value)
 
 		value = string(record.Payload.Bytes())
-		fmt.Println(" :", value)
+		fmt.Println("payload :", value)
 	}
 
 	err = src.Teardown(ctx)
@@ -251,9 +255,11 @@ func TestSuccessfulGetWholeDataset(t *testing.T) {
 			t.Errorf("some other error found: %v", err)
 		}
 		value := string(record.Position)
-		fmt.Println("Record found:", value)
+		fmt.Println("Position found:", value)
 		value = string(record.Payload.Bytes())
-		fmt.Println(":", value)
+		fmt.Println("result:", value)
+		key := string(record.Key.Bytes())
+		fmt.Println("Key :", key)
 	}
 
 	err = src.Teardown(ctx)
