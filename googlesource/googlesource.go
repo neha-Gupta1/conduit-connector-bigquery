@@ -42,7 +42,7 @@ type readRowInput struct {
 }
 
 // checkInitialPos helps in creating the query to fetch data from endpoint
-func (s *Source) checkInitialPos(positions string, incrementColName string, tableID string, primaryColName string) (firstSync, userDefinedOffset bool, userDefinedKey bool) {
+func (s *Source) checkInitialPos(positions, incrementColName, primaryColName string) (firstSync, userDefinedOffset, userDefinedKey bool) {
 	// if its the firstSync no offset is applied
 	if positions == "" {
 		firstSync = true
@@ -61,19 +61,15 @@ func (s *Source) checkInitialPos(positions string, incrementColName string, tabl
 	return firstSync, userDefinedOffset, userDefinedKey
 }
 
-func (s *Source) ReadGoogleRow(rowInput readRowInput, responseCh chan sdk.Record) (err error) {
+func (s *Source) ReadRows() (err error) {
 	sdk.Logger(s.ctx).Trace().Msg("Inside read google row")
-	var userDefinedOffset, userDefinedKey bool
-	var firstSync bool
 
-	offset := rowInput.offset
+	offset := s.position
 	tableID := s.table
-	wg := rowInput.wg
 
-	firstSync, userDefinedOffset, userDefinedKey = s.checkInitialPos(rowInput.positions, s.sourceConfig.Config.IncrementColNames, tableID, s.sourceConfig.Config.PrimaryKeyColNames)
+	firstSync, userDefinedOffset, userDefinedKey := s.checkInitialPos(s.position, s.sourceConfig.Config.IncrementColNames, s.sourceConfig.Config.PrimaryKeyColNames)
 	lastRow := false
 
-	defer wg.Done()
 	for {
 		// Keep on reading till end of table
 		sdk.Logger(s.ctx).Trace().Str("tableID", tableID).Msg("inside read google row infinite for loop")
@@ -118,6 +114,8 @@ func (s *Source) ReadGoogleRow(rowInput readRowInput, responseCh chan sdk.Record
 				return err
 			}
 
+			// all of the code below is concerned only about transforming a BigQuery row into a Conduit record
+			// so it should be extracted into a method
 			data := make(sdk.StructuredData)
 			var key string
 
@@ -180,7 +178,7 @@ func (s *Source) ReadGoogleRow(rowInput readRowInput, responseCh chan sdk.Record
 				Key:       sdk.RawData(byteKey),
 				Position:  recPosition}
 
-			responseCh <- record
+			s.records <- record
 		}
 	}
 	return
@@ -300,33 +298,13 @@ func fetchPos(s *Source, pos sdk.Position) {
 	}
 }
 
-func getTables(s *Source) (err error) {
-	if s.sourceConfig.Config.TableIDs == "" {
-		sdk.Logger(s.ctx).Trace().Str("err", err.Error()).Msg("error found while listing table")
-		return fmt.Errorf("table ID blank")
-	}
-	s.table = s.sourceConfig.Config.TableIDs
-	return err
-}
-
 func (s *Source) runIterator() (err error) {
-	var wg sync.WaitGroup
-
-	if err = getTables(s); err != nil {
-		sdk.Logger(s.ctx).Trace().Str("err", err.Error()).Msg("error found while fetching tables. Need to stop proccessing ")
-		return err
+	err = s.ReadRows()
+	if err != nil {
+		return fmt.Errorf("couldn't start iterator: %w", err)
 	}
 
-	// Snapshot sync. Start were we left last
-	wg.Add(1)
-
-	rowInput := readRowInput{offset: s.position, positions: s.position, wg: &wg}
-	s.tomb.Go(func() (err error) {
-		sdk.Logger(s.ctx).Trace().Msg(fmt.Sprintf("position %v : %v", s.table, s.position))
-		return s.ReadGoogleRow(rowInput, s.records)
-	})
-
-	wg.Wait()
+	// at this point we are done with the snapshot
 
 	for {
 		select {
@@ -334,22 +312,10 @@ func (s *Source) runIterator() (err error) {
 			return s.tomb.Err()
 		case <-s.ticker.C:
 			sdk.Logger(s.ctx).Trace().Msg("ticker started ")
-			runCDCIterator(s, rowInput)
+			err := s.ReadRows()
+			if err != nil {
+				// handle err
+			}
 		}
 	}
-}
-
-func runCDCIterator(s *Source, rowInput readRowInput) {
-	// wait group make sure that we start new iteration only
-	//  after the first iteration is completely done.
-	var wg sync.WaitGroup
-	wg.Add(1)
-	rowInput = readRowInput{tableID: s.table, offset: s.position, positions: s.position, wg: &wg}
-
-	s.tomb.Go(func() (err error) {
-		sdk.Logger(s.ctx).Trace().Msg(fmt.Sprintf("position %v : %v", s.table, s.position))
-		return s.ReadGoogleRow(rowInput, s.records)
-	})
-
-	wg.Wait()
 }
