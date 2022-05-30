@@ -15,7 +15,9 @@
 package googlesource
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -35,9 +37,19 @@ var (
 	projectID        = os.Getenv("GOOGLE_PROJECT_ID")      // eg, export GOOGLE_PROJECT_ID ="conduit-connectors"
 	datasetID        = "conduit_test_dataset"
 	tableID          = "conduit_test_table"
+	tableID2         = "conduit_test_table_2"
 	tableIDTimeStamp = "conduit_test_table_time_stamp"
 	location         = "US"
+	globalCounter    = 0
 )
+
+func DataSetup() (err error) {
+	err = dataSetup()
+	if err != nil {
+		return err
+	}
+	return err
+}
 
 // Initial setup required - project with service account.
 func dataSetup() (err error) {
@@ -89,6 +101,98 @@ func dataSetup() (err error) {
 	fmt.Println("Table created:", tableID)
 
 	return nil
+}
+
+// dataSetupWithRecord Initial setup required - project with service account.
+func dataSetupWithRecord(config map[string]string, record []sdk.Record) (result []sdk.Record, err error) {
+	ctx := context.Background()
+	tableID := config[googlebigquery.ConfigTableID]
+
+	client, err := bigquery.NewClient(ctx, projectID, option.WithCredentialsFile(serviceAccount))
+	if err != nil {
+		return result, fmt.Errorf("bigquery.NewClient: %v", err)
+	}
+	defer client.Close()
+
+	meta := &bigquery.DatasetMetadata{
+		Location: location, // See https://cloud.google.com/bigquery/docs/locations
+	}
+
+	// create dataset
+	if err := client.Dataset(datasetID).Create(ctx, meta); err != nil && !strings.Contains(err.Error(), "duplicate") {
+		return result, err
+	}
+	fmt.Println("Dataset created")
+	client, err = bigquery.NewClient(ctx, projectID, option.WithCredentialsFile(serviceAccount))
+	if err != nil {
+		return result, fmt.Errorf("bigquery.NewClient: %v", err)
+	}
+	defer client.Close()
+
+	sampleSchema := bigquery.Schema{
+		{Name: "abb", Type: bigquery.StringFieldType},
+		{Name: "name", Type: bigquery.StringFieldType},
+	}
+
+	metaData := &bigquery.TableMetadata{
+		Schema:         sampleSchema,
+		ExpirationTime: time.Now().AddDate(1, 0, 0), // Table will be automatically deleted in 1 year.
+	}
+	tableRef := client.Dataset(datasetID).Table(tableID)
+	err = tableRef.Create(ctx, metaData)
+	if err != nil && !strings.Contains(err.Error(), "duplicate") {
+		return result, err
+	}
+
+	var query string
+	positions := make(map[string]string)
+
+	for i := 0; i < len(record); i++ {
+		// name := fmt.Sprintf("%s", record[i].Payload.Bytes())
+		name := fmt.Sprintf("name%v", time.Now().AddDate(0, 0, globalCounter).Format("20060102150405"))
+		abb := fmt.Sprintf("name%v", time.Now().AddDate(0, 0, globalCounter).Format("20060102150405"))
+		query = "INSERT INTO `" + projectID + "." + datasetID + "." + tableID + "`  values ('" + abb + "' , '" + name + "')"
+
+		data := make(sdk.StructuredData)
+		data["abb"] = abb
+		data["name"] = name
+
+		key := name
+
+		buffer := &bytes.Buffer{}
+		if err := gob.NewEncoder(buffer).Encode(key); err != nil {
+			return result, err
+		}
+		byteKey := buffer.Bytes()
+
+		positions[tableID] = fmt.Sprintf("'%s'", name)
+		positionRecord, err := json.Marshal(&positions)
+		if err != nil {
+			log.Println("error found", err)
+			return result, err
+		}
+
+		result = append(result, sdk.Record{Payload: data, Key: sdk.RawData(byteKey), Position: positionRecord})
+		q := client.Query(query)
+		q.Location = location
+
+		job, err := q.Run(ctx)
+		if err != nil {
+			log.Println("Error found: ", err)
+		}
+
+		status, err := job.Wait(ctx)
+		if err != nil {
+			log.Println("Error found: ", err)
+			return result, err
+		}
+
+		if err = status.Err(); err != nil {
+			log.Println("Error found: ", err)
+		}
+		globalCounter++
+	}
+	return result, nil
 }
 
 // Item represents a row item.
@@ -253,11 +357,11 @@ func TestSuccessTimeIncremental(t *testing.T) {
 
 	err = src.Open(ctx, pos)
 	if err != nil {
-		fmt.Println("errror: ", err)
+		fmt.Println("error: ", err)
 	}
-	time.Sleep(15 * time.Second)
+	time.Sleep(5 * time.Second)
 	for {
-		_, err := src.Read(ctx)
+		_, err = src.Read(ctx)
 		if err != nil || ctx.Err() != nil {
 			fmt.Println(err)
 			break
@@ -302,7 +406,7 @@ func TestSuccessTimeIncrementalAndUpdate(t *testing.T) {
 
 	err = src.Open(ctx, pos)
 	if err != nil {
-		fmt.Println("errror: ", err)
+		fmt.Println("error: ", err)
 	}
 
 	var recordPos []byte
@@ -529,10 +633,10 @@ func TestSuccessfulOrderByName(t *testing.T) {
 		fmt.Println("errror: ", err)
 		t.Errorf("some other error found: %v", err)
 	}
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	for {
-		_, err := src.Read(ctx)
+		record, err := src.Read(ctx)
 		if err != nil && err == sdk.ErrBackoffRetry {
 			fmt.Println("err: ", err)
 			break
@@ -540,6 +644,10 @@ func TestSuccessfulOrderByName(t *testing.T) {
 		if err != nil {
 			t.Errorf("some other error found: %v", err)
 		}
+		value := string(record.Position)
+		fmt.Println("Record found:", value)
+		value = string(record.Payload.Bytes())
+		fmt.Println(":", value)
 	}
 
 	err = src.Teardown(ctx)

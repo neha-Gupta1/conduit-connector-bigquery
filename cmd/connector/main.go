@@ -21,5 +21,6 @@ import (
 )
 
 func main() {
-	sdk.Serve(connector.Specification, googlesource.NewSource, nil)
+	connector := sdk.Connector{NewSpecification: connector.Specification, NewSource: googlesource.NewSource}
+	sdk.Serve(connector)
 }
