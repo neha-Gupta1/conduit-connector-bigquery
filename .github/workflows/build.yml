@@ -20,8 +20,7 @@ jobs:
         run: |
           touch service_account
           echo ${{ secrets.GOOGLE_SERVICE_ACCOUNT }} >> .service_account
-          cat .service_account
-
+         
       - name: Test
         env:
           GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
