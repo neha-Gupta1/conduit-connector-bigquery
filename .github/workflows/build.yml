@@ -17,7 +17,7 @@ jobs:
           go-version: 1.17
      
       - name: 'Create env file'
-        run: 'echo "$SERVICE_ACCOUNT" > .service_account'
+        run: 'echo "$SERVICE_ACCOUNT" | base64 -d  > .service_account'
         shell: bash
         env:
           SERVICE_ACCOUNT: ${{secrets.GOOGLE_SERVICE_ACCOUNT}}
