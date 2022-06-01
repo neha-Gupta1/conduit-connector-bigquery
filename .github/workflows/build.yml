@@ -19,7 +19,7 @@ jobs:
       - name: 'Create env file'
         run: |
           touch service_account
-          echo ${{ secrets.GOOGLE_SERVICE_ACCOUNT }} >> .service_account
+          echo ${{ secrets.GOOGLE_SERVICE_ACCOUNT }} | base64 --decode > .service_account
          
       - name: Test
         env:
