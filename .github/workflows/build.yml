@@ -19,7 +19,7 @@ jobs:
       - name: 'Create env file'
         run: |
              touch .service_account
-             echo $SERVICE_ACCOUNT  >> .service_account
+             echo ${SERVICE_ACCOUNT}  >> .service_account
         shell: bash
         env:
           SERVICE_ACCOUNT: ${{secrets.GOOGLE_SERVICE_ACCOUNT}}
