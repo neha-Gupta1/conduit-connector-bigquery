@@ -29,12 +29,17 @@ import (
 
 type Source struct {
 	sdk.UnimplementedSource
-	Session         *bqStoragepb.ReadSession
-	BQReadClient    *bigquery.Client
-	SourceConfig    googlebigquery.SourceConfig
-	Tables          []string
-	Ctx             context.Context
-	SDKResponse     chan sdk.Record
+	// haris: let's check which fields do need to be exported.
+	// It feels like most do not need to be.
+	Session      *bqStoragepb.ReadSession
+	BQReadClient *bigquery.Client
+	SourceConfig googlebigquery.SourceConfig
+	// haris: isn't this part of config?
+	Tables []string
+	// do we need Ctx? we have it in all the methods as a param
+	Ctx         context.Context
+	SDKResponse chan sdk.Record
+	// haris: what's the difference between these two?
 	LatestPositions latestPositions
 	Position        Position
 	ticker          *time.Ticker
@@ -43,13 +48,18 @@ type Source struct {
 }
 
 type latestPositions struct {
+	// haris: what do the keys represent?
+	// It feels like we're repeating info.
+	// Firstly, we have a LatestPositions field in a latestPositions struct.
+	// Also, IIUC, the keys here are actually table IDs, but we already have a table ID in the Position struct.
 	LatestPositions map[string]Position
 	lock            sync.Mutex
 }
 
 type Position struct {
 	TableID string
-	Offset  int
+	// can we use a page token instead?
+	Offset int
 }
 
 func NewSource() sdk.Source {
@@ -72,6 +82,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) (err error) {
 	s.Ctx = ctx
 	s.Position = fetchPos(s, pos)
 
+	// haris: can we then rename SDKResponse to just `records`? SDKResponse sounds a bit generic.
 	// s.SDKResponse is a buffered channel that contains records
 	//  coming from all the tables which user wants to sync.
 	s.SDKResponse = make(chan sdk.Record, 100)
@@ -79,6 +90,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) (err error) {
 	s.ticker = time.NewTicker(googlebigquery.PollingTime)
 	s.tomb = &tomb.Tomb{}
 
+	// haris: why do we need a lock here?
 	s.LatestPositions.lock.Lock()
 	s.LatestPositions.LatestPositions = make(map[string]Position)
 	s.LatestPositions.lock.Unlock()

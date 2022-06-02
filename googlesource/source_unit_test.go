@@ -49,7 +49,7 @@ func TestSuccessfulTearDown(t *testing.T) {
 	}
 
 	defer func() {
-		err := cleanupDataSet()
+		err := cleanupDataset()
 		fmt.Println("Got error while cleanup. Err: ", err)
 	}()
 
@@ -87,7 +87,7 @@ func TestMultipleTables(t *testing.T) {
 		return
 	}
 	defer func() {
-		err := cleanupDataSet()
+		err := cleanupDataset()
 		fmt.Println("Got error while cleanup. Err: ", err)
 	}()
 

@@ -29,6 +29,8 @@ import (
 )
 
 var (
+	// make these environmental variables with default values, or an empty value {first two} if it's required by user
+	// check this for a reference https://github.com/ConduitIO/conduit-connector-s3/blob/10078746a718860570bc810f5a0040a096a447a4/source/source_integration_test.go#L611
 	serviceAccount = "<replace_me>"       // replace with path to service account with permission for the project
 	projectID      = "conduit-connectors" // replace projectID created
 	datasetID      = "conduit_test_dataset"
@@ -37,9 +39,9 @@ var (
 	location       = "US"
 )
 
-func TestDataSetup(t *testing.T) {
-	dataSetup()
-}
+// func TestDataSetup(t *testing.T) {
+// 	dataSetup()
+// }
 
 // Initial setup required - project with service account.
 func dataSetup() (err error) {
@@ -112,7 +114,7 @@ func dataSetup() (err error) {
 	return nil
 }
 
-func cleanupDataSet() (err error) {
+func cleanupDataset() (err error) {
 	ctx := context.Background()
 
 	client, err := bigquery.NewClient(ctx, projectID, option.WithCredentialsFile(serviceAccount))
@@ -151,12 +153,12 @@ func TestSuccessfulGet(t *testing.T) {
 		return
 	}
 	defer func() {
-		err := cleanupDataSet()
+		err := cleanupDataset()
 		fmt.Println("Got error while cleanup. Err: ", err)
 	}()
 
 	src := Source{}
-	cfg := map[string]string{}
+	cfg := map[string]string{} // initialize the map with all the values in one step map[string]string{key:val,...
 	cfg[googlebigquery.ConfigServiceAccount] = serviceAccount
 	cfg[googlebigquery.ConfigProjectID] = projectID
 	cfg[googlebigquery.ConfigDatasetID] = datasetID
@@ -209,7 +211,7 @@ func TestSuccessfulGetWholeDataset(t *testing.T) {
 		return
 	}
 	defer func() {
-		err := cleanupDataSet()
+		err := cleanupDataset()
 		fmt.Println("Got error while cleanup. Err: ", err)
 	}()
 

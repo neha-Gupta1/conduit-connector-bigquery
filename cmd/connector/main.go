@@ -16,7 +16,6 @@ package main
 
 import (
 	sdk "github.com/conduitio/conduit-connector-sdk"
-
 	connector "github.com/neha-Gupta1/conduit-connector-bigquery"
 	"github.com/neha-Gupta1/conduit-connector-bigquery/googlesource"
 )

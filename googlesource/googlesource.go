@@ -40,6 +40,7 @@ type readRowInput struct {
 	wg       *sync.WaitGroup
 }
 
+// haris: why does rowInput need to be a chan?
 func (s *Source) ReadGoogleRow(rowInput chan readRowInput, responseCh chan sdk.Record) (err error) {
 	input := <-rowInput
 	position := input.position
@@ -94,6 +95,7 @@ func (s *Source) ReadGoogleRow(rowInput chan readRowInput, responseCh chan sdk.R
 				return err
 			}
 
+			// haris: does BQ have its own way of tracking rows, i.e. its own offsets?
 			offset++
 			position := Position{
 				TableID: tableID,
@@ -134,7 +136,9 @@ func (s *Source) wrtieLatestPosition(postion Position) {
 }
 
 // runGetRow sync data for bigquery using bigquery client jobs
+// haris proposal to rename to getRowIterator, since it's not returning a single row
 func (s *Source) runGetRow(offset int, tableID string) (it *bigquery.RowIterator, err error) {
+	// haris: does BigQuery guarantee ordering?
 	q := s.BQReadClient.Query(
 		"SELECT * FROM `" + s.SourceConfig.Config.ConfigProjectID + "." + s.SourceConfig.Config.ConfigDatasetID + "." + tableID + "` " +
 			"LIMIT " + strconv.Itoa(googlebigquery.CounterLimit) + " OFFSET " + strconv.Itoa(offset))
@@ -228,6 +232,7 @@ func getTables(s *Source) (err error) {
 	return err
 }
 
+// split into more methods for readability
 func (s *Source) runIterator() (err error) {
 	rowInput := make(chan readRowInput)
 	for {
@@ -237,6 +242,9 @@ func (s *Source) runIterator() (err error) {
 		case <-s.ticker.C:
 			sdk.Logger(s.Ctx).Trace().Msg("ticker started ")
 			// create new client everytime the new sync start. This make sure that new tables coming in are handled.
+			// haris: can we list tables in a way which doesn't require us to create a new client every polling period?
+			// in other words, why can't we list all the tables with an existing client?
+			// I'm concerned about the time overhead but also about new connections.
 			client, err := newClient(s.tomb.Context(s.Ctx), s.SourceConfig.Config.ConfigProjectID, option.WithCredentialsFile(s.SourceConfig.Config.ConfigServiceAccount))
 			if err != nil {
 				sdk.Logger(s.Ctx).Error().Str("err", err.Error()).Msg("error found while creating connection. ")
@@ -253,7 +261,7 @@ func (s *Source) runIterator() (err error) {
 
 			foundTable := false
 
-			// if its an already running pipeling and we just
+			// if its an already running pipeline and we just
 			// want to check for any new rows. Send the offset as
 			// last position where we left.
 			if len(s.LatestPositions.LatestPositions) > 0 {
