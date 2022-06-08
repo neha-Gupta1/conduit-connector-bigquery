@@ -20,7 +20,6 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -45,28 +44,39 @@ func TestAcceptance(t *testing.T) {
 		googlebigquery.ConfigPollingTime:        "1ms",
 	}
 
+	// create a dataset once and clean up later
+	client, err := createDataSetForAcceptance(t)
+	if err != nil {
+		t.Fatalf("could not create dataset. err %v", err)
+	}
+
+	defer cleanupDatasetForAcceptance(t, client)
+
 	sdk.AcceptanceTest(t, AcceptanceTestDriver{
-		Config: AcceptanceSourceTestDriverConfig{
-			Connector: sdk.Connector{
-				NewSpecification: googlebigquery.Specification,
-				NewSource:        NewSource,
-			},
-			SourceConfig: cfg,
-			GoleakOptions: []goleak.Option{
-				goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"), // indirect leak from dependency go.opencensus.io
-				goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
-			},
-			BeforeTest: func(t *testing.T) {
-				err := createDatasetForAcceptance(t, cfg[googlebigquery.ConfigTableID])
-				if err != nil {
-					fmt.Println("Error found")
-				}
-			},
-			AfterTest: func(t *testing.T) {
-				err := cleanupDataset(t, []string{cfg[googlebigquery.ConfigTableID]})
-				if err != nil {
-					fmt.Println("Error found")
-				}
+		sdk.ConfigurableAcceptanceTestDriver{
+			Config: sdk.ConfigurableAcceptanceTestDriverConfig{
+				Connector: sdk.Connector{
+					NewSpecification: googlebigquery.Specification,
+					NewSource:        NewSource,
+				},
+				SourceConfig: cfg,
+				GoleakOptions: []goleak.Option{
+					goleak.IgnoreCurrent(),
+					goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"), // indirect leak from dependency go.opencensus.io
+					goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
+				},
+				BeforeTest: func(t *testing.T) {
+					err := createTableForAcceptance(t, client, cfg[googlebigquery.ConfigTableID])
+					if err != nil {
+						t.Log("Error found")
+					}
+				},
+				AfterTest: func(t *testing.T) {
+					err := cleantUpTableForAcceptance(t, client, []string{cfg[googlebigquery.ConfigTableID]})
+					if err != nil {
+						t.Log("Error found")
+					}
+				},
 			},
 		},
 	},
@@ -75,75 +85,7 @@ func TestAcceptance(t *testing.T) {
 
 // AcceptanceTestDriver implements sdk.AcceptanceTestDriver
 type AcceptanceTestDriver struct {
-	Config AcceptanceSourceTestDriverConfig
-}
-
-// AcceptanceSourceTestDriverConfig contains the configuration for
-// AcceptanceTestDriver.
-type AcceptanceSourceTestDriverConfig struct {
-	// Connector is the connector to be tested.
-	Connector sdk.Connector
-
-	// SourceConfig config for source
-	SourceConfig map[string]string
-
-	// BeforeTest is executed before each acceptance test.
-	BeforeTest func(t *testing.T)
-	// AfterTest is executed after each acceptance test.
-	AfterTest func(t *testing.T)
-
-	// GoleakOptions will be applied to goleak.VerifyNone. Can be used to
-	// suppress false positive goroutine leaks.
-	GoleakOptions []goleak.Option
-
-	// Skip is a slice of regular expressions used to identify tests that should
-	// be skipped. The full test name will be matched against all regular
-	// expressions and the test will be skipped if a match is found.
-	Skip []string
-}
-
-func (d AcceptanceTestDriver) DestinationConfig(*testing.T) map[string]string {
-	return map[string]string{}
-}
-func (d AcceptanceTestDriver) Connector() sdk.Connector {
-	return d.Config.Connector
-}
-
-func (d AcceptanceTestDriver) SourceConfig(*testing.T) map[string]string {
-	return d.Config.SourceConfig
-}
-
-func (d AcceptanceTestDriver) BeforeTest(t *testing.T) {
-	// before test check if the test should be skipped
-	d.Skip(t)
-
-	if d.Config.BeforeTest != nil {
-		d.Config.BeforeTest(t)
-	}
-}
-
-func (d AcceptanceTestDriver) AfterTest(t *testing.T) {
-	if d.Config.AfterTest != nil {
-		d.Config.AfterTest(t)
-	}
-}
-
-func (d AcceptanceTestDriver) Skip(t *testing.T) {
-	var skipRegexs []*regexp.Regexp
-	for _, skipRegex := range d.Config.Skip {
-		r := regexp.MustCompile(skipRegex)
-		skipRegexs = append(skipRegexs, r)
-	}
-
-	for _, skipRegex := range skipRegexs {
-		if skipRegex.MatchString(t.Name()) {
-			t.Skip(fmt.Sprintf("caller requested to skip tests that match the regex %q", skipRegex.String()))
-		}
-	}
-}
-
-func (d AcceptanceTestDriver) GoleakOptions(_ *testing.T) []goleak.Option {
-	return d.Config.GoleakOptions
+	sdk.ConfigurableAcceptanceTestDriver
 }
 
 // WriteToSource writes data for source to pull data from
@@ -161,23 +103,14 @@ func writeToSource(t *testing.T, config map[string]string, records []sdk.Record)
 	result, err = dataSetupWithRecord(t, config, records)
 	return result, err
 }
-func (d AcceptanceTestDriver) ReadFromDestination(*testing.T, []sdk.Record) []sdk.Record {
-	return []sdk.Record{}
-}
 
-func (d AcceptanceTestDriver) GenerateRecord(_ *testing.T) sdk.Record {
-	// we don't create record over here. Because we need to code here and then decode again
-	return sdk.Record{}
-}
-
-func createDatasetForAcceptance(t *testing.T, tableID string) (err error) {
+func createDataSetForAcceptance(t *testing.T) (client *bigquery.Client, err error) {
 	ctx := context.Background()
 
-	client, err := bigquery.NewClient(ctx, projectID, option.WithCredentialsJSON([]byte(serviceAccount)))
+	client, err = bigquery.NewClient(ctx, projectID, option.WithCredentialsJSON([]byte(serviceAccount)))
 	if err != nil {
-		return fmt.Errorf("bigquery.NewClient: %v", err)
+		return client, fmt.Errorf("bigquery.NewClient: %v", err)
 	}
-	defer client.Close()
 
 	meta := &bigquery.DatasetMetadata{
 		Location: location, // See https://cloud.google.com/bigquery/docs/locations
@@ -185,14 +118,14 @@ func createDatasetForAcceptance(t *testing.T, tableID string) (err error) {
 
 	// create dataset
 	if err := client.Dataset(datasetID).Create(ctx, meta); err != nil && !strings.Contains(err.Error(), "duplicate") {
-		return err
+		return client, err
 	}
 	t.Log("Dataset created")
-	client, err = bigquery.NewClient(ctx, projectID, option.WithCredentialsJSON([]byte(serviceAccount)))
-	if err != nil {
-		return fmt.Errorf("bigquery.NewClient: %v", err)
-	}
-	defer client.Close()
+	return client, err
+}
+
+func createTableForAcceptance(t *testing.T, client *bigquery.Client, tableID string) (err error) {
+	ctx := context.Background()
 
 	sampleSchema := bigquery.Schema{
 		{Name: "abb", Type: bigquery.StringFieldType},
@@ -270,4 +203,29 @@ func dataSetupWithRecord(t *testing.T, config map[string]string, record []sdk.Re
 		globalCounter++
 	}
 	return result, nil
+}
+
+func cleantUpTableForAcceptance(t *testing.T, client *bigquery.Client, tables []string) (err error) {
+	ctx := context.Background()
+
+	for _, tableID := range tables {
+		table := client.Dataset(datasetID).Table(tableID)
+		err := table.Delete(ctx)
+		if err != nil && strings.Contains(err.Error(), "Not found") {
+			return err
+		}
+	}
+	return err
+}
+
+func cleanupDatasetForAcceptance(t *testing.T, client *bigquery.Client) (err error) {
+
+	defer client.Close()
+	ctx := context.Background()
+	if err = client.Dataset(datasetID).Delete(ctx); err != nil {
+		// dataset could already be in use. it is okay if it does not get deleted
+		t.Log("Error in delete: ", err)
+		return err
+	}
+	return err
 }
