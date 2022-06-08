@@ -134,7 +134,7 @@ func createTableForAcceptance(t *testing.T, client *bigquery.Client, tableID str
 
 	metaData := &bigquery.TableMetadata{
 		Schema:         sampleSchema,
-		ExpirationTime: time.Now().AddDate(1, 0, 0), // Table will be automatically deleted in 1 year.
+		ExpirationTime: time.Now().Add(1 * time.Hour), // Table will be automatically deleted in 1 year.
 	}
 	tableRef := client.Dataset(datasetID).Table(tableID)
 	err = tableRef.Create(ctx, metaData)
