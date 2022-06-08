@@ -32,6 +32,8 @@ import (
 	"google.golang.org/api/option"
 )
 
+var globalCounter = 0
+
 func TestAcceptance(t *testing.T) {
 	cfg := map[string]string{
 		googlebigquery.ConfigServiceAccount:     serviceAccount,
