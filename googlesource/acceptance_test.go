@@ -50,7 +50,12 @@ func TestAcceptance(t *testing.T) {
 		t.Fatalf("could not create dataset. err %v", err)
 	}
 
-	defer cleanupDatasetForAcceptance(t, client)
+	defer func() {
+		err := cleanupDatasetForAcceptance(t, client)
+		if err != nil {
+			t.Log("Error while deleting dataset. err: ", err)
+		}
+	}()
 
 	sdk.AcceptanceTest(t, AcceptanceTestDriver{
 		sdk.ConfigurableAcceptanceTestDriver{
@@ -219,7 +224,6 @@ func cleantUpTableForAcceptance(t *testing.T, client *bigquery.Client, tables []
 }
 
 func cleanupDatasetForAcceptance(t *testing.T, client *bigquery.Client) (err error) {
-
 	defer client.Close()
 	ctx := context.Background()
 	if err = client.Dataset(datasetID).Delete(ctx); err != nil {
