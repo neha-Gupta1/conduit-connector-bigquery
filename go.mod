@@ -7,7 +7,7 @@ require (
 	github.com/conduitio/conduit-connector-sdk v0.2.1-0.20220530152250-733149cddc0b
 	github.com/matryer/is v1.4.0
 	go.uber.org/goleak v1.2.0
-	google.golang.org/api v0.95.0
+	google.golang.org/api v0.96.0
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
 
@@ -34,9 +34,9 @@ require (
 	github.com/rs/zerolog v1.26.1 // indirect
 	go.buf.build/library/go-grpc/conduitio/conduit-connector-protocol v1.4.1 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
+	golang.org/x/net v0.0.0-20220909164309-bea034e7d591 // indirect
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1 // indirect
-	golang.org/x/sys v0.0.0-20220624220833-87e55d714810 // indirect
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	google.golang.org/appengine v1.6.7 // indirect
