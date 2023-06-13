@@ -7,7 +7,7 @@ require (
 	github.com/conduitio/conduit-connector-sdk v0.6.0
 	github.com/matryer/is v1.4.1
 	go.uber.org/goleak v1.2.1
-	google.golang.org/api v0.126.0
+	google.golang.org/api v0.127.0
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
 
@@ -32,7 +32,7 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.2.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.10.0 // indirect
 	github.com/hashicorp/go-hclog v0.14.1 // indirect
 	github.com/hashicorp/go-plugin v1.4.3 // indirect
