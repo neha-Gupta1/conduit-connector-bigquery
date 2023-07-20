@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	cloud.google.com/go/bigquery v1.52.0
-	github.com/conduitio/conduit-connector-sdk v0.6.0
+	github.com/conduitio/conduit-connector-sdk v0.7.0
 	github.com/matryer/is v1.4.1
 	go.uber.org/goleak v1.2.1
 	google.golang.org/api v0.132.0
@@ -53,7 +53,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
 	github.com/oklog/run v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
-	github.com/rs/zerolog v1.29.0 // indirect
+	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
