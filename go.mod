@@ -7,7 +7,7 @@ require (
 	github.com/conduitio/conduit-connector-sdk v0.7.2
 	github.com/matryer/is v1.4.1
 	go.uber.org/goleak v1.2.1
-	google.golang.org/api v0.143.0
+	google.golang.org/api v0.144.0
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
 
@@ -74,6 +74,6 @@ require (
 	google.golang.org/genproto v0.0.0-20230913181813-007df8e322eb // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230913181813-007df8e322eb // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230920204549-e6e6cdab5c13 // indirect
-	google.golang.org/grpc v1.57.0 // indirect
+	google.golang.org/grpc v1.58.2 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 )
