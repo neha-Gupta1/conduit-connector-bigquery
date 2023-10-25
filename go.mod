@@ -3,7 +3,7 @@ module github.com/neha-Gupta1/conduit-connector-bigquery
 go 1.17
 
 require (
-	cloud.google.com/go/bigquery v1.55.0
+	cloud.google.com/go/bigquery v1.56.0
 	github.com/conduitio/conduit-connector-sdk v0.7.2
 	github.com/matryer/is v1.4.1
 	go.uber.org/goleak v1.3.0
