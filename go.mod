@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/bigquery v1.55.0
 	github.com/conduitio/conduit-connector-sdk v0.7.2
 	github.com/matryer/is v1.4.1
-	go.uber.org/goleak v1.2.1
+	go.uber.org/goleak v1.3.0
 	google.golang.org/api v0.148.0
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
